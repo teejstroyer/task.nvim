@@ -176,7 +176,7 @@ function M.apply_highlights()
 
       -- Checkbox Highlight ([ ]) - Moved here where 'conf' and 'id' are valid
       vim.api.nvim_set_hl(0, check_hl, { fg = conf.color })
-      vim.cmd(string.format([[syntax match %s "^\s*-\s*%s"]], check_hl, pesc(conf.check_style)))
+      vim.cmd(string.format([[syntax match %s "^\s*-\s*%s"]], check_hl, U.pesc(conf.check_style)))
     end
   end
 
