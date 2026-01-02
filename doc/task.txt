@@ -1,0 +1,92 @@
+*task.txt* Deterministic, header-first task management for Neovim
+
+==============================================================================
+TASK.NVIM                                                           *task.nvim*
+
+A task management plugin for Neovim that treats the physical Markdown header
+as the ultimate authority for task state. Built for engineers who want a
+deterministic, plain-text backlog that respects standard Vim workflows.
+
+                                  CONTENTS                *task-contents*
+
+    1. Philosophy.............................|task-philosophy|
+    2. Installation...........................|task-installation|
+    3. Configuration..........................|task-configuration|
+    4. Commands...............................|task-commands|
+    5. Highlighting...........................|task-highlights|
+
+==============================================================================
+1. Philosophy                                               *task-philosophy*
+
+Most task plugins rely on metadata tags. task.nvim is different:
+
+- LOCATION IS STATE: Moving a task under a "## Completed" header updates its
+  checkbox to [x] and tag to @done.
+- ZERO AMBIGUITY: Every section must have a unique checkstyle (e.g., [x] vs
+  [a]) to prevent infinite state loops.
+- TYPE SEPARATION: Task types (BUG, FEAT) are nested in metadata, allowing
+  custom colors to pierce through generic metadata styling.
+
+==============================================================================
+2. Installation                                             *task-installation*
+
+Using Neovim 0.12+ vim.pack:
+>lua
+    vim.pack.add({ source = "teejstroyer/task.nvim" })
+    require("task").setup({})
+<
+Using lazy.nvim:
+>lua
+    {
+        "teejstroyer/task.nvim",
+        ft = "markdown",
+        config = function() require("task").setup({}) end
+    }
+<
+==============================================================================
+3. Configuration                                           *task-configuration*
+
+The setup function accepts a table to override defaults.
+
+SECTIONS:
+Every section MUST have a unique "check_style".
+- label: The Markdown header text.
+- check_style: The unique checkbox string (e.g., "[ ]", "[x]", "[b]").
+- color: Hex code for syntax highlighting.
+
+TYPES:
+- style: Markdown wrapping (e.g., "**" for bold, "_" for italics).
+- color: Hex code for the metadata keyword.
+
+Example setup:
+>lua
+    require("task").setup({
+        sections = {
+            todo = { label = "Todo", check_style = "[ ]", color = "#ff9e64" },
+            done = { label = "Completed", check_style = "[x]", color = "#9ece6a" },
+        },
+        types = {
+            bug = { style = "**", color = "#f7768e" },
+        }
+    })
+<
+==============================================================================
+4. Commands                                                   *task-commands*
+
+:TaskNew [type]         Create new task under "Todo". Defaults to TASK.
+:TaskSync               Reconcile metadata for the entire buffer.
+:Task<Section>          Move line/selection to <Section> (e.g., :TaskDone).
+
+==============================================================================
+5. Highlighting                                             *task-highlights*
+
+task.nvim dynamically creates the following groups:
+
+TaskHeader<Id>          Reversed highlight for section headers.
+TaskCheck<Id>           Highlight for the checkbox icon.
+TaskGroup<Id>           Highlight for the @tag.
+TaskType<TYPE>          Highlight for specific task types (e.g., BUG).
+TaskMetadata            Italic/dimmed highlight for pipes and dates.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
