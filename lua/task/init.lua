@@ -21,7 +21,7 @@
 -- - [w]	win
 -- - [u]	up
 -- - [d]	down
---
+
 local M = {}
 local U = require("task.utils")
 
@@ -46,6 +46,7 @@ M.config = {
   default_type = "TASK"
 }
 
+-- PRIVATE: Orchestrates the physical movement of tasks in the buffer
 local function perform_move(section_id, line_num)
   local section = M.config.sections[section_id]
   if not section then return end
@@ -55,6 +56,7 @@ local function perform_move(section_id, line_num)
 
   if not line or not line:match("^%s*%- %[.%]") then return end
 
+  -- Call Engine with specific parameters
   local updated_line = U.format_task_line(
     line,
     section_id,
@@ -68,22 +70,21 @@ local function perform_move(section_id, line_num)
 
   local target_h = U.find_header_line(section.label)
 
+  -- Create section header if it doesn't exist
   if not target_h then
     local ins = U.get_smart_insert_pos(section_id, M.config.sections)
     vim.api.nvim_buf_set_lines(0, ins, ins, false, { "", "## " .. section.label, "" })
     target_h = U.find_header_line(section.label)
   end
 
+  -- Final nil-safety guard
   if not target_h then
-    vim.notify(
-      string.format("[task.nvim] Failed to move task: Could not resolve header for section '%s'", section_id),
-      vim.log.levels.ERROR
-    )
+    vim.notify("[task.nvim] Error: Could not resolve header for " .. section_id, 3)
     return
   end
 
+  -- Perform the swap
   vim.api.nvim_buf_set_lines(0, target_h, target_h, false, { updated_line })
-
   local del_idx = (target_h <= curr_lnum) and curr_lnum or curr_lnum - 1
   vim.api.nvim_buf_set_lines(0, del_idx, del_idx + 1, false, {})
 
@@ -92,7 +93,60 @@ local function perform_move(section_id, line_num)
   end
 end
 
--- PUBLIC: API Methods
+-- PUBLIC API --
+
+function M.new_task(task_type)
+  vim.ui.input({ prompt = "Description: " }, function(desc)
+    if not desc or desc == "" then return end
+
+    -- 1. Find the section with the smallest 'order' value
+    local first_id = nil
+    local first_section = nil
+    local min_order = math.huge
+
+    for id, sec in pairs(M.config.sections) do
+      if sec.order < min_order then
+        min_order = sec.order
+        first_id = id
+        first_section = sec
+      end
+    end
+
+    -- Fallback if no sections are defined
+    if not first_id or not first_section then return end
+
+    -- 2. Construct the formatted line
+    local final_type = (task_type == nil or task_type == "") and M.config.default_type or task_type:upper()
+    local date_str = os.date(M.config.date_format)
+
+    -- Format: - [ ] description @id|TYPE|date
+    local formatted_line = string.format("- %s %s @%s|%s|%s",
+      first_section.check_style,
+      desc,
+      first_id,
+      final_type,
+      date_str
+    )
+
+    -- 3. Resolve the header for this section
+    local target_h = U.find_header_line(first_section.label)
+
+    -- 4. Create section header if it doesn't exist
+    if not target_h then
+      local ins = U.get_smart_insert_pos(first_id, M.config.sections)
+      vim.api.nvim_buf_set_lines(0, ins, ins, false, { "", "## " .. first_section.label, "" })
+      target_h = U.find_header_line(first_section.label)
+    end
+
+    -- 5. Insert directly into the buffer and update cursor
+    if target_h then
+      -- Insert one line below the header
+      vim.api.nvim_buf_set_lines(0, target_h, target_h, false, { formatted_line })
+      vim.api.nvim_win_set_cursor(0, { target_h + 1, 0 })
+    end
+  end)
+end
+
 function M.move_task(section_id)
   local mode = vim.api.nvim_get_mode().mode
   if mode:match("[vV\22]") then
@@ -114,12 +168,14 @@ function M.sync_line()
   local physical_id = U.get_physical_section_id(lnum, M.config.sections)
   if not physical_id then return end
 
+  -- Bidirectional Sync: @tag forces a move
   local tag_id = line:match("@([%w]+)")
   if tag_id and M.config.sections[tag_id] and tag_id ~= physical_id then
     perform_move(tag_id)
     return
   end
 
+  -- Bidirectional Sync: Checkbox forces a move
   for id, conf in pairs(M.config.sections) do
     if line:match("^%s*%- " .. U.pesc(conf.check_style)) and id ~= physical_id then
       perform_move(id)
@@ -127,7 +183,7 @@ function M.sync_line()
     end
   end
 
-  -- Call Utility to reconcile formatting (force_today = false)
+  -- Re-format text to match physical section
   local correct = U.format_task_line(
     line,
     physical_id,
@@ -163,55 +219,42 @@ function M.sync_buffer()
 end
 
 function M.apply_highlights()
-  -- 1. Create the Section Tag & Checkbox highlights (@todo and [ ])
   for id, conf in pairs(M.config.sections) do
     if conf.color then
       local suffix = id:gsub("^%l", string.upper)
-      local tag_hl = "TaskGroup" .. suffix
-      local check_hl = "TaskCheck" .. suffix
-
-      -- Tag Highlight (@todo)
-      vim.api.nvim_set_hl(0, tag_hl, { fg = conf.color, bold = true })
-      vim.cmd(string.format([[syntax match %s "@%s"]], tag_hl, id))
-
-      -- Checkbox Highlight ([ ]) - Moved here where 'conf' and 'id' are valid
-      vim.api.nvim_set_hl(0, check_hl, { fg = conf.color })
-      vim.cmd(string.format([[syntax match %s "^\s*-\s*%s"]], check_hl, U.pesc(conf.check_style)))
+      vim.api.nvim_set_hl(0, "TaskGroup" .. suffix, { fg = conf.color, bold = true })
+      vim.api.nvim_set_hl(0, "TaskCheck" .. suffix, { fg = conf.color })
+      vim.cmd(string.format([[syntax match TaskGroup%s "@%s"]], suffix, id))
+      vim.cmd(string.format([[syntax match TaskCheck%s "^\s*-\s*%s"]], suffix, U.pesc(conf.check_style)))
     end
   end
 
-  -- 2. Define the Type highlights (|BUG|, |FEAT|) with 'contained'
   local type_groups = {}
   for tid, tconf in pairs(M.config.types) do
     if tconf.color then
       local hl = "TaskType" .. tid:upper()
       table.insert(type_groups, hl)
       vim.api.nvim_set_hl(0, hl, { fg = tconf.color, bold = true })
-      -- Match the type name specifically inside pipes
       vim.cmd(string.format([[syntax match %s "\<%s\>" contained]], hl, tid:upper()))
     end
   end
 
-  -- 3. Define the Metadata wrapper (the pipes and date)
   vim.api.nvim_set_hl(0, "TaskMetadata", M.config.highlights.metadata)
   local contains_list = table.concat(type_groups, ",")
-  -- 'contains' allows TaskType highlights to show through the Metadata highlight
+  -- Containment allows Type colors to pierce through Metadata gray
   vim.cmd(string.format([[syntax match TaskMetadata "|[^ ]*|" contains=%s]], contains_list))
 end
 
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 
-  -- VALIDATION: Check for duplicate check_styles
-  local seen_styles = {}
+  -- Collision Protection
+  local seen = {}
   for id, conf in pairs(M.config.sections) do
-    if seen_styles[conf.check_style] then
-      error(string.format(
-        "[TaskOrganizer] Configuration Error: Sections '%s' and '%s' share the same check_style '%s'. Styles must be unique.",
-        seen_styles[conf.check_style], id, conf.check_style
-      ))
+    if seen[conf.check_style] then
+      error("[task.nvim] Duplicate check_style: " .. id .. " and " .. seen[conf.check_style])
     end
-    seen_styles[conf.check_style] = id
+    seen[conf.check_style] = id
   end
 
   local group = vim.api.nvim_create_augroup("TaskOrganizer", { clear = true })
@@ -227,14 +270,18 @@ function M.setup(opts)
       end)
     end,
   })
+
+  -- Dynamic Command Generation
   vim.api.nvim_create_user_command("TaskSync", M.sync_buffer, {})
+  vim.api.nvim_create_user_command("TaskNew", function(c) M.new_task(c.args ~= "" and c.args or nil) end, { nargs = "?" })
+
   for id, _ in pairs(M.config.sections) do
     local name = "Task" .. id:gsub("^%l", string.upper)
     vim.api.nvim_create_user_command(name, function(c)
       if c.range > 0 then
-        for i = c.line2, c.line1, -1 do M._perform_move(id, i) end
+        for i = c.line2, c.line1, -1 do perform_move(id, i) end
       else
-        M._perform_move(id)
+        perform_move(id)
       end
     end, { range = true })
   end
