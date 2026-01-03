@@ -46,7 +46,6 @@ M.config = {
   default_type = "TASK"
 }
 
--- PRIVATE: Orchestrates the physical movement of tasks in the buffer
 local function perform_move(section_id, line_num)
   local section = M.config.sections[section_id]
   if not section then return end
@@ -56,7 +55,6 @@ local function perform_move(section_id, line_num)
 
   if not line or not line:match("^%s*%- %[.%]") then return end
 
-  -- Call Engine with specific parameters
   local updated_line = U.format_task_line(
     line,
     section_id,
@@ -70,20 +68,17 @@ local function perform_move(section_id, line_num)
 
   local target_h = U.find_header_line(section.label)
 
-  -- Create section header if it doesn't exist
   if not target_h then
     local ins = U.get_smart_insert_pos(section_id, M.config.sections)
     vim.api.nvim_buf_set_lines(0, ins, ins, false, { "", "## " .. section.label, "" })
     target_h = U.find_header_line(section.label)
   end
 
-  -- Final nil-safety guard
   if not target_h then
     vim.notify("[task.nvim] Error: Could not resolve header for " .. section_id, 3)
     return
   end
 
-  -- Perform the swap
   vim.api.nvim_buf_set_lines(0, target_h, target_h, false, { updated_line })
   local del_idx = (target_h <= curr_lnum) and curr_lnum or curr_lnum - 1
   vim.api.nvim_buf_set_lines(0, del_idx, del_idx + 1, false, {})
@@ -94,12 +89,10 @@ local function perform_move(section_id, line_num)
 end
 
 -- PUBLIC API --
-
 function M.new_task(task_type)
   vim.ui.input({ prompt = "Description: " }, function(desc)
     if not desc or desc == "" then return end
 
-    -- 1. Find the section with the smallest 'order' value
     local first_id = nil
     local first_section = nil
     local min_order = math.huge
@@ -112,14 +105,11 @@ function M.new_task(task_type)
       end
     end
 
-    -- Fallback if no sections are defined
     if not first_id or not first_section then return end
 
-    -- 2. Construct the formatted line
     local final_type = (task_type == nil or task_type == "") and M.config.default_type or task_type:upper()
     local date_str = os.date(M.config.date_format)
 
-    -- Format: - [ ] description @id|TYPE|date
     local formatted_line = string.format("- %s %s @%s|%s|%s",
       first_section.check_style,
       desc,
@@ -128,19 +118,15 @@ function M.new_task(task_type)
       date_str
     )
 
-    -- 3. Resolve the header for this section
     local target_h = U.find_header_line(first_section.label)
 
-    -- 4. Create section header if it doesn't exist
     if not target_h then
       local ins = U.get_smart_insert_pos(first_id, M.config.sections)
       vim.api.nvim_buf_set_lines(0, ins, ins, false, { "", "## " .. first_section.label, "" })
       target_h = U.find_header_line(first_section.label)
     end
 
-    -- 5. Insert directly into the buffer and update cursor
     if target_h then
-      -- Insert one line below the header
       vim.api.nvim_buf_set_lines(0, target_h, target_h, false, { formatted_line })
       vim.api.nvim_win_set_cursor(0, { target_h + 1, 0 })
     end
@@ -175,7 +161,6 @@ function M.sync_line()
     return
   end
 
-  -- Bidirectional Sync: Checkbox forces a move
   for id, conf in pairs(M.config.sections) do
     if line:match("^%s*%- " .. U.pesc(conf.check_style)) and id ~= physical_id then
       perform_move(id)
@@ -241,14 +226,12 @@ function M.apply_highlights()
 
   vim.api.nvim_set_hl(0, "TaskMetadata", M.config.highlights.metadata)
   local contains_list = table.concat(type_groups, ",")
-  -- Containment allows Type colors to pierce through Metadata gray
   vim.cmd(string.format([[syntax match TaskMetadata "|[^ ]*|" contains=%s]], contains_list))
 end
 
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 
-  -- Collision Protection
   local seen = {}
   for id, conf in pairs(M.config.sections) do
     if seen[conf.check_style] then
@@ -271,7 +254,6 @@ function M.setup(opts)
     end,
   })
 
-  -- Dynamic Command Generation
   vim.api.nvim_create_user_command("TaskSync", M.sync_buffer, {})
   vim.api.nvim_create_user_command("TaskNew", function(c) M.new_task(c.args ~= "" and c.args or nil) end, { nargs = "?" })
 
