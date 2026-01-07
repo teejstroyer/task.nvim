@@ -1,5 +1,7 @@
 # task.nvim
 
+> Early development beta plugin
+
 > A deterministic, header-first task management system for Neovim.
 
 ## The Philosophy: "Header as Source of Truth"
@@ -26,7 +28,7 @@ Most task plugins rely on brittle metadata tags or checkboxes as the primary sou
 
 ```lua
 vim.pack.add({
-    source = "teejstroyer/task.nvim",
+  "https://github.com/teejstroyer/task.nvim",
 })
 
 require("task").setup({
@@ -123,6 +125,21 @@ The plugin generates highlights based on your config colors:
 * **Metadata:** `TaskMetadata` (Italic/dimmed).
 * **Types:** `TaskTypeBUG`, etc. (Contained within metadata pipes to maintain distinct colors).
 
-## License
+## Todo
+- [ ]	to-do @todo|TASK|2026-01-07
+- [ ] Priority support @todo|TASK|2026-01-07
+- [ ] Sub task support @todo|TASK|2026-01-07
+- [ ] Create .task file for project specfic settings @todo|TASK|2026-01-07
+- [ ] Fix extra white space on task creation and moving @todo|TASK|2026-01-07
 
-MIT
+## In Progress
+- [/]incomplete @doing|TASK|2026-01-07
+- [/]incomplete @doing|TASK|2026-01-07
+
+## Completed
+- [x] Custom user mappings  @done|TASK|2026-01-07
+- [x] Custom user highlights  @done|TASK|2026-01-07
+- [x] Custom user styling by task type  @done|TASK|2026-01-07
+
+## Proposals
+- [I] Consider removing checkbox logic and opting for tag only @idea|TASK|2026-01-07
