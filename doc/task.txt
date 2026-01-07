@@ -13,7 +13,8 @@ deterministic, plain-text backlog that respects standard Vim workflows.
     2. Installation...........................|task-installation|
     3. Configuration..........................|task-configuration|
     4. Commands...............................|task-commands|
-    5. Highlighting...........................|task-highlights|
+    5. Lua API................................|task-api|
+    6. Highlighting...........................|task-highlights|
 
 ==============================================================================
 1. Philosophy                                               *task-philosophy*
@@ -32,7 +33,7 @@ Most task plugins rely on metadata tags. task.nvim is different:
 
 Using Neovim 0.12+ vim.pack:
 >lua
-    vim.pack.add({ source = "teejstroyer/task.nvim" })
+    vim.pack.add({ "teejstroyer/task.nvim" })
     require("task").setup({})
 <
 Using lazy.nvim:
@@ -50,43 +51,79 @@ The setup function accepts a table to override defaults.
 
 SECTIONS:
 Every section MUST have a unique "check_style".
-- label: The Markdown header text.
-- check_style: The unique checkbox string (e.g., "[ ]", "[x]", "[b]").
-- color: Hex code for syntax highlighting.
+- label (string): The Markdown header text.
+- check_style (string): The unique checkbox string (e.g., "[ ]", "[x]", "[b]").
+- order (number): Priority order for sorting/inserting.
+- color (string): Hex code for syntax highlighting.
+- style (string): Optional Markdown wrapping (e.g., "~~" for strikethrough).
 
 TYPES:
-- style: Markdown wrapping (e.g., "**" for bold, "_" for italics).
-- color: Hex code for the metadata keyword.
+- style (string): Markdown wrapping (e.g., "**" for bold, "_" for italics).
+- color (string): Hex code for the metadata keyword.
+
+HIGHLIGHTS:
+- metadata (table): Highlight attributes for metadata (e.g., { fg = "...", italic = true }).
 
 Example setup:
 >lua
     require("task").setup({
         sections = {
-            todo = { label = "Todo", check_style = "[ ]", color = "#ff9e64" },
-            done = { label = "Completed", check_style = "[x]", color = "#9ece6a" },
+            todo = { label = "Todo", check_style = "[ ]", order = 1, color = "#ff9e64" },
+            done = { label = "Completed", check_style = "[x]", order = 3, color = "#9ece6a" },
         },
         types = {
             bug = { style = "**", color = "#f7768e" },
+        },
+        highlights = {
+            metadata = { fg = "#565f89", italic = true }
         }
     })
 <
 ==============================================================================
 4. Commands                                                   *task-commands*
 
-:TaskNew [type]         Create new task under "Todo". Defaults to TASK.
-:TaskSync               Reconcile metadata for the entire buffer.
-:Task<Section>          Move line/selection to <Section> (e.g., :TaskDone).
+:TaskNew [type]         Create a new task under the first section.
+                        Optional [type] overrides default (e.g., "BUG").
+
+:TaskSync               Reconcile metadata for the entire buffer, ensuring
+                        tasks match their physical headers.
+
+:TaskMove [section_id]  Move current line or visual selection to [section_id].
+                        If [section_id] is omitted, prompts for selection.
+                        Example: :TaskMove done
 
 ==============================================================================
-5. Highlighting                                             *task-highlights*
+5. Lua API                                                         *task-api*
 
-task.nvim dynamically creates the following groups:
+Useful for creating custom keybindings.
 
-TaskHeader<Id>          Reversed highlight for section headers.
-TaskCheck<Id>           Highlight for the checkbox icon.
-TaskGroup<Id>           Highlight for the @tag.
-TaskType<TYPE>          Highlight for specific task types (e.g., BUG).
-TaskMetadata            Italic/dimmed highlight for pipes and dates.
+require("task").new_task(type)
+    Prompts for description and creates a task.
+    @param type (string|nil) Optional task type (e.g., "bug").
+
+require("task").move(section_id)
+    Moves the current task(s) to the specified section.
+    If section_id is nil/empty, prompts via vim.ui.select.
+    @param section_id (string|nil) The section key from config (e.g., "doing").
+
+require("task").sync_buffer()
+    Syncs the entire buffer.
+
+Example Keymaps:
+>lua
+    local task = require("task")
+    vim.keymap.set('n', '<leader>tn', function() task.new_task() end)
+    vim.keymap.set('n', '<leader>td', function() task.move("done") end)
+<
+==============================================================================
+6. Highlighting                                             *task-highlights*
+
+task.nvim dynamically creates the following groups based on config:
+
+TaskGroup<Id>           Highlight for the @tag (e.g., TaskGroupTodo).
+TaskCheck<Id>           Highlight for the checkbox icon (e.g., TaskCheckDone).
+TaskType<TYPE>          Highlight for specific task types (e.g., TaskTypeBUG).
+TaskMetadata            Highlight for pipes and dates.
 
 ==============================================================================
 vim:tw=78:ts=8:ft=help:norl:

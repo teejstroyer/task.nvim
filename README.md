@@ -119,16 +119,13 @@ require("task").setup({
 })
 ```
 
+---
+
 ## Todo
-- [ ]	to-do @todo|TASK|2026-01-07
 - [ ] Priority support @todo|TASK|2026-01-07
 - [ ] Sub task support @todo|TASK|2026-01-07
 - [ ] Create .task file for project specfic settings @todo|TASK|2026-01-07
 - [ ] Fix extra white space on task creation and moving @todo|TASK|2026-01-07
-
-## In Progress
-- [/]incomplete @doing|TASK|2026-01-07
-- [/]incomplete @doing|TASK|2026-01-07
 
 ## Completed
 - [x] Custom user mappings  @done|TASK|2026-01-07

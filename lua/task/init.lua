@@ -133,7 +133,12 @@ function M.new_task(task_type)
   end)
 end
 
-function M.move_task(section_id)
+function M.move_task(section_id, start_line, end_line)
+  if start_line and end_line then
+    for i = end_line, start_line, -1 do perform_move(section_id, i) end
+    return
+  end
+
   local mode = vim.api.nvim_get_mode().mode
   if mode:match("[vV\22]") then
     vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), 'nx', false)
@@ -146,17 +151,19 @@ function M.move_task(section_id)
   end
 end
 
-function M.select_move()
+function M.select_move(start_line, end_line)
   local mode = vim.api.nvim_get_mode().mode
   local is_visual = mode:match("[vV\22]")
-  local l1, l2
+  local l1, l2 = start_line, end_line
 
-  if is_visual then
-    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), 'nx', false)
-    l1, l2 = vim.fn.line("'<"), vim.fn.line("'>")
-  else
-    l1 = vim.api.nvim_win_get_cursor(0)[1]
-    l2 = l1
+  if not l1 then
+    if is_visual then
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), 'nx', false)
+      l1, l2 = vim.fn.line("'<"), vim.fn.line("'>")
+    else
+      l1 = vim.api.nvim_win_get_cursor(0)[1]
+      l2 = l1
+    end
   end
 
   local line = vim.api.nvim_buf_get_lines(0, l1 - 1, l1, false)[1]
@@ -191,11 +198,11 @@ function M.select_move()
   end)
 end
 
-function M.move(section_id)
+function M.move(section_id, start_line, end_line)
   if not section_id or section_id == "" then
-    M.select_move()
+    M.select_move(start_line, end_line)
   else
-    M.move_task(section_id)
+    M.move_task(section_id, start_line, end_line)
   end
 end
 
@@ -309,7 +316,7 @@ function M.setup(opts)
 
   vim.api.nvim_create_user_command("TaskSync", M.sync_buffer, {})
   vim.api.nvim_create_user_command("TaskNew", function(c) M.new_task(c.args ~= "" and c.args or nil) end, { nargs = "?" })
-  vim.api.nvim_create_user_command("TaskMove", function(c) M.move(c.args ~= "" and c.args or nil) end,
+  vim.api.nvim_create_user_command("TaskMove", function(c) M.move(c.args ~= "" and c.args or nil, c.line1, c.line2) end,
     { range = true, nargs = "?" })
 end
 
