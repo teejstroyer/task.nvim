@@ -1,26 +1,18 @@
-# task.nvim
+# task.nvim 📝
 
 > Early development beta plugin
 
-> A deterministic, header-first task management system for Neovim.
-
-## The Philosophy: "Header as Source of Truth"
-
-Most task plugins rely on brittle metadata tags or checkboxes as the primary source of state, leading to "ghost tasks," desyncs, and race conditions when you manually edit your file.
-
-**task.nvim is different.** It treats the **physical Markdown header** the task sits under as the ultimate authority.
-
-1. **Location = State:** If you use standard Vim motions to move a task under the `## Completed` header, the plugin automatically updates its metadata to match.
-2. **Zero Ambiguity:** Every section must have a unique checkstyle (e.g., `[x]` vs `[b]`), mathematically preventing infinite loops or bouncing states.
-3. **Type & Style Separation:** Task types like `BUG` or `FEAT` are nested inside the metadata, allowing their distinct colors to "pierce through" the generic metadata highlighting.
+A lightweight, native Neovim plugin for managing structured task lists directly in Markdown files. Designed for speed, flexibility, and zero-dependency efficiency.
 
 ## ✨ Features
 
-* **Bidirectional Sync:** Moving tasks physically updates state; changing state tags moves tasks physically.
-* **Typed Tasks:** Distinguish between standard tasks, `BUG`s, and `FEAT`ures with unique visual styles and colors.
-* **Loop Protection:** Built-in validation ensures your configuration cannot create conflicting states.
-* **Dashboard Visuals:** Reversed header colors and distinct icons create a clear, scannable managerial view of your workload.
-* **Automatic Maintenance:** Dates automatically update only when a task's primary state changes, preserving project history.
+* **Physical Task Movement**: Automatically moves tasks between Markdown headers (e.g., `## Todo` → `## Completed`) based on their status.
+* **Bidirectional Syncing**: Changing a checkbox or adding a `@tag` automatically triggers a move to the correct section.
+* **Customizable Workflow**: Define your own sections, priority orders, and highlight colors.
+* **Auto-Formatting**: Ensures tasks are consistently formatted with dates and metadata (e.g., `|TASK|2026-01-07|`).
+* **Native-First**: Built to leverage Neovim 0.12's native package and event systems.
+
+---
 
 ## 📦 Installation
 
@@ -52,11 +44,61 @@ require("task").setup({
 
 ```
 
-## ⚙️ Configuration
+---
 
-**Crucial Rule:** Every section **must** have a unique `check_style` to ensure deterministic state.
+## 🚀 Usage
+
+### Commands
+
+| Command | Description |
+| --- | --- |
+| `:TaskNew` | Prompt for a description and create a new task in your first section. |
+| `:TaskNew <TYPE>` |  - Specify task type on creation. |
+| `:TaskSync` | Scans the current buffer and moves all tasks to their correct physical headers. |
+| `:TaskMove` | `vim.ui.select()` based task movement. |
+| `:TaskMove <SECTION>` | Move the task under user defined section. |
+
+
+### Example Keybindings
 
 ```lua
+local task = require("task")
+
+vim.keymap.set('n', '<leader>tn', function() task.new_task('task') end, { desc = "Task: Quick New (default type)" })
+vim.keymap.set('n', '<leader>tN', function()
+  vim.ui.input({ prompt = "Task Type: " }, function(input)
+    task.new_task(input)
+  end)
+end, { desc = "Task: New (Prompt for Type)" })
+vim.keymap.set({ 'n', 'v' }, '<leader>tb', function() task.move_task("todo") end, { desc = "Task:Backlog" })
+vim.keymap.set({ 'n', 'v' }, '<leader>tp', function() task.move_task("doing") end, { desc = "Task:Progress" })
+vim.keymap.set({ 'n', 'v' }, '<leader>td', function() task.move_task("done") end, { desc = "Task:Completed" })
+vim.keymap.set({ 'n', 'v' }, '<leader>ta', function() task.move_task("archive") end, { desc = "Task:Archive" })
+vim.keymap.set({ 'n', 'v' }, '<leader>tw', function() task.move_task("wont") end, { desc = "Task:Wont Do" })
+vim.keymap.set({ 'n', 'v' }, '<leader>tc', function() task.move_task("cancelled") end, { desc = "Task:Cancelled" })
+vim.keymap.set({ 'n', 'v' }, '<leader>t<space>', function() task.select_move() end, { desc = "Task: Move" })
+```
+
+---
+
+## 🎨 Configuration
+
+The `setup()` function allows you to define the structure of your task lists.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `sections` | `table` | Dictionary of status IDs (todo, done, etc.) with labels and icons. |
+| `types` | `table` | Metadata tags (BUG, FEAT, TASK) with specific styles/colors. |
+| `date_format` | `string` | The Lua `os.date` format for task timestamps. |
+
+### Example Custom Section
+
+> **Crucial Rule:** Every section **must** have a unique `check_style` to ensure deterministic state.
+
+> [Minimal Checklists Styles](https://minimal.guide/checklists--)
+
+```lua
+--Default configuration
 require("task").setup({
     sections = {
         todo      = { label = "Todo",        check_style = "[ ]", order = 1, color = "#ff9e64" },
@@ -75,55 +117,7 @@ require("task").setup({
     date_format = "%Y-%m-%d",
     default_type = "TASK"
 })
-
 ```
-
-## 🚀 Usage
-
-### Automatic Syncing
-
-The plugin hooks into `InsertLeave` and `TextChanged` to format the line based on its header location. Manual type edits (e.g., changing `TASK` to `BUG`) refresh styles instantly without moving the line.
-
-### Commands
-
-| Command | Description |
-| --- | --- |
-| `:TaskNew [type]` | Prompts for description and creates a task under `## Todo`. |
-| `:TaskSync` | Scans buffer to reconcile all metadata with physical locations. |
-| `:Task<Id>` | Moves current line/selection to the specified section (e.g., `:TaskDone`). |
-
-### Recommended Keymaps
-
-```lua
-local tasks = require("task")
-
--- Buffer-local mapping for Markdown files
-vim.api.nvim_create_autocmd("FileType", {
-    pattern = "markdown",
-    callback = function()
-        local opts = { buffer = true, silent = true }
-
-        -- New Tasks
-        vim.keymap.set('n', '<localleader>tn', function() tasks.new_task('task') end, opts)
-        vim.keymap.set('n', '<localleader>tN', function() tasks.new_task() end, opts)
-
-        -- State Transitions (Normal & Visual)
-        vim.keymap.set({ 'n', 'v' }, '<localleader>tb', ":TaskTodo<CR>", opts)
-        vim.keymap.set({ 'n', 'v' }, '<localleader>tp', ":TaskDoing<CR>", opts)
-        vim.keymap.set({ 'n', 'v' }, '<localleader>td', ":TaskDone<CR>", opts)
-        vim.keymap.set({ 'n', 'v' }, '<localleader>ta', ":TaskArchive<CR>", opts)
-    end,
-})
-
-```
-
-## 🎨 Highlights & Integration
-
-The plugin generates highlights based on your config colors:
-
-* **Headers:** `TaskHeaderTodo`, etc. (Reversed for dashboard feel).
-* **Metadata:** `TaskMetadata` (Italic/dimmed).
-* **Types:** `TaskTypeBUG`, etc. (Contained within metadata pipes to maintain distinct colors).
 
 ## Todo
 - [ ]	to-do @todo|TASK|2026-01-07

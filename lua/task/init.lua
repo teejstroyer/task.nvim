@@ -146,6 +146,59 @@ function M.move_task(section_id)
   end
 end
 
+function M.select_move()
+  local mode = vim.api.nvim_get_mode().mode
+  local is_visual = mode:match("[vV\22]")
+  local l1, l2
+
+  if is_visual then
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), 'nx', false)
+    l1, l2 = vim.fn.line("'<"), vim.fn.line("'>")
+  else
+    l1 = vim.api.nvim_win_get_cursor(0)[1]
+    l2 = l1
+  end
+
+  local line = vim.api.nvim_buf_get_lines(0, l1 - 1, l1, false)[1]
+  if not line or not line:match("^%s*%- %[.%]") then return end
+
+  local current_id = U.get_physical_section_id(l1, M.config.sections)
+
+  local targets = {}
+  for id, conf in pairs(M.config.sections) do
+    if id ~= current_id then
+      table.insert(targets, id)
+    end
+  end
+
+  table.sort(targets, function(a, b)
+    return M.config.sections[a].order < M.config.sections[b].order
+  end)
+
+  vim.ui.select(targets, {
+    prompt = "Move task(s) to:",
+    format_item = function(item)
+      return string.format("%s (%s)", M.config.sections[item].label, item)
+    end
+  }, function(choice)
+    if choice then
+      vim.schedule(function()
+        for i = l2, l1, -1 do
+          perform_move(choice, i)
+        end
+      end)
+    end
+  end)
+end
+
+function M.move(section_id)
+  if not section_id or section_id == "" then
+    M.select_move()
+  else
+    M.move_task(section_id)
+  end
+end
+
 function M.sync_line()
   local lnum = vim.api.nvim_win_get_cursor(0)[1]
   local line = vim.api.nvim_get_current_line()
@@ -229,51 +282,6 @@ function M.apply_highlights()
   vim.cmd(string.format([[syntax match TaskMetadata "|[^ ]*|" contains=%s]], contains_list))
 end
 
-function M.select_move()
-  local mode = vim.api.nvim_get_mode().mode
-  local is_visual = mode:match("[vV\22]")
-  local l1, l2
-
-  if is_visual then
-    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), 'nx', false)
-    l1, l2 = vim.fn.line("'<"), vim.fn.line("'>")
-  else
-    l1 = vim.api.nvim_win_get_cursor(0)[1]
-    l2 = l1
-  end
-
-  local line = vim.api.nvim_buf_get_lines(0, l1 - 1, l1, false)[1]
-  if not line or not line:match("^%s*%- %[.%]") then return end
-
-  local current_id = U.get_physical_section_id(l1, M.config.sections)
-
-  local targets = {}
-  for id, conf in pairs(M.config.sections) do
-    if id ~= current_id then
-      table.insert(targets, id)
-    end
-  end
-
-  table.sort(targets, function(a, b)
-    return M.config.sections[a].order < M.config.sections[b].order
-  end)
-
-  vim.ui.select(targets, {
-    prompt = "Move task(s) to:",
-    format_item = function(item)
-      return string.format("%s (%s)", M.config.sections[item].label, item)
-    end
-  }, function(choice)
-    if choice then
-      vim.schedule(function()
-        for i = l2, l1, -1 do
-          perform_move(choice, i)
-        end
-      end)
-    end
-  end)
-end
-
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 
@@ -301,18 +309,8 @@ function M.setup(opts)
 
   vim.api.nvim_create_user_command("TaskSync", M.sync_buffer, {})
   vim.api.nvim_create_user_command("TaskNew", function(c) M.new_task(c.args ~= "" and c.args or nil) end, { nargs = "?" })
-  vim.api.nvim_create_user_command("TaskMove", M.select_move, { range = true })
-
-  for id, _ in pairs(M.config.sections) do
-    local name = "Task" .. id:gsub("^%l", string.upper)
-    vim.api.nvim_create_user_command(name, function(c)
-      if c.range > 0 then
-        for i = c.line2, c.line1, -1 do perform_move(id, i) end
-      else
-        perform_move(id)
-      end
-    end, { range = true })
-  end
+  vim.api.nvim_create_user_command("TaskMove", function(c) M.move(c.args ~= "" and c.args or nil) end,
+    { range = true, nargs = "?" })
 end
 
 return M
