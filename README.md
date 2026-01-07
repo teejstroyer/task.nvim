@@ -2,6 +2,8 @@
 
 > Early development beta plugin
 
+> Need a plugin like [markview.nvim](https://github.com/OXY2DEV/markview.nvim) for checkbox rendering support. [Minimal Checklists](https://minimal.guide/checklists--)
+
 A lightweight, native Neovim plugin for managing structured task lists directly in Markdown files. Designed for speed, flexibility, and zero-dependency efficiency.
 
 ## ✨ Features
@@ -129,6 +131,7 @@ require("task").setup({
 - [ ] Sub task support @todo|TASK|2026-01-07
 - [ ] Create .task file for project specfic settings @todo|TASK|2026-01-07
 - [ ] Fix extra white space on task creation and moving @todo|TASK|2026-01-07
+- [ ] Implement minimal checklists @todo|TASK|2026-01-07
 
 ## Completed
 - [x] Custom user mappings  @done|TASK|2026-01-07
