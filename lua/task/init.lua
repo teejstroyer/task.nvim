@@ -229,6 +229,37 @@ function M.apply_highlights()
   vim.cmd(string.format([[syntax match TaskMetadata "|[^ ]*|" contains=%s]], contains_list))
 end
 
+function M.select_move()
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+  local line = vim.api.nvim_buf_get_lines(0, lnum - 1, lnum, false)[1]
+
+  if not line or not line:match("^%s*%- %[.%]") then return end
+
+  local current_id = U.get_physical_section_id(lnum, M.config.sections)
+
+  local targets = {}
+  for id, conf in pairs(M.config.sections) do
+    if id ~= current_id then
+      table.insert(targets, id)
+    end
+  end
+
+  table.sort(targets, function(a, b)
+    return M.config.sections[a].order < M.config.sections[b].order
+  end)
+
+  vim.ui.select(targets, {
+    prompt = "Move task to:",
+    format_item = function(item)
+      return M.config.sections[item].label
+    end
+  }, function(choice)
+    if choice then
+      perform_move(choice, lnum)
+    end
+  end)
+end
+
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 
@@ -256,6 +287,7 @@ function M.setup(opts)
 
   vim.api.nvim_create_user_command("TaskSync", M.sync_buffer, {})
   vim.api.nvim_create_user_command("TaskNew", function(c) M.new_task(c.args ~= "" and c.args or nil) end, { nargs = "?" })
+  vim.api.nvim_create_user_command("TaskMove", M.select_move, {})
 
   for id, _ in pairs(M.config.sections) do
     local name = "Task" .. id:gsub("^%l", string.upper)
