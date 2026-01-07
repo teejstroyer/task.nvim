@@ -230,12 +230,22 @@ function M.apply_highlights()
 end
 
 function M.select_move()
-  local lnum = vim.api.nvim_win_get_cursor(0)[1]
-  local line = vim.api.nvim_buf_get_lines(0, lnum - 1, lnum, false)[1]
+  local mode = vim.api.nvim_get_mode().mode
+  local is_visual = mode:match("[vV\22]")
+  local l1, l2
 
+  if is_visual then
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), 'nx', false)
+    l1, l2 = vim.fn.line("'<"), vim.fn.line("'>")
+  else
+    l1 = vim.api.nvim_win_get_cursor(0)[1]
+    l2 = l1
+  end
+
+  local line = vim.api.nvim_buf_get_lines(0, l1 - 1, l1, false)[1]
   if not line or not line:match("^%s*%- %[.%]") then return end
 
-  local current_id = U.get_physical_section_id(lnum, M.config.sections)
+  local current_id = U.get_physical_section_id(l1, M.config.sections)
 
   local targets = {}
   for id, conf in pairs(M.config.sections) do
@@ -249,13 +259,17 @@ function M.select_move()
   end)
 
   vim.ui.select(targets, {
-    prompt = "Move task to:",
+    prompt = "Move task(s) to:",
     format_item = function(item)
       return M.config.sections[item].label
     end
   }, function(choice)
     if choice then
-      perform_move(choice, lnum)
+      vim.schedule(function()
+        for i = l2, l1, -1 do
+          perform_move(choice, i)
+        end
+      end)
     end
   end)
 end
@@ -287,7 +301,7 @@ function M.setup(opts)
 
   vim.api.nvim_create_user_command("TaskSync", M.sync_buffer, {})
   vim.api.nvim_create_user_command("TaskNew", function(c) M.new_task(c.args ~= "" and c.args or nil) end, { nargs = "?" })
-  vim.api.nvim_create_user_command("TaskMove", M.select_move, {})
+  vim.api.nvim_create_user_command("TaskMove", M.select_move, { range = true })
 
   for id, _ in pairs(M.config.sections) do
     local name = "Task" .. id:gsub("^%l", string.upper)
