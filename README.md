@@ -12,6 +12,9 @@ A lightweight, native Neovim plugin for managing structured task lists directly 
 * **Auto-Formatting**: Ensures tasks are consistently formatted with dates and metadata (e.g., `|TASK|2026-01-07|`).
 * **Native-First**: Built to leverage Neovim 0.12's native package and event systems.
 
+## Demo
+![Demo](./demo/demo.gif)
+
 ---
 
 ## 📦 Installation
