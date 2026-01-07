@@ -261,7 +261,7 @@ function M.select_move()
   vim.ui.select(targets, {
     prompt = "Move task(s) to:",
     format_item = function(item)
-      return M.config.sections[item].label
+      return string.format("%s (%s)", M.config.sections[item].label, item)
     end
   }, function(choice)
     if choice then
