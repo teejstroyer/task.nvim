@@ -25,7 +25,7 @@
 local M = {}
 local U = require("task.utils")
 
-M.config = {
+local default_config = {
   sections = {
     todo      = { label = "Todo", check_style = "[ ]", order = 1, color = "#ff9e64" },
     doing     = { label = "In Progress", check_style = "[/]", order = 2, color = "#7aa2f7" },
@@ -45,6 +45,9 @@ M.config = {
   date_format = "%Y-%m-%d",
   default_type = "TASK"
 }
+
+M.config = vim.deepcopy(default_config)
+local base_config = vim.deepcopy(default_config)
 
 local function perform_move(section_id, line_num)
   local section = M.config.sections[section_id]
@@ -289,8 +292,51 @@ function M.apply_highlights()
   vim.cmd(string.format([[syntax match TaskMetadata "|[^ ]*|" contains=%s]], contains_list))
 end
 
+function M.create_project_config()
+  local path = ".task.json"
+  if vim.fn.filereadable(path) == 1 then
+    local choice = vim.fn.confirm("Overwrite existing .task.json?", "&Yes\n&No", 2)
+    if choice ~= 1 then return end
+  end
+
+  local json = vim.fn.json_encode(M.config)
+  -- Simple formatting for readability
+  local formatted = json:gsub(",", ",\n  "):gsub("{", "{\n  "):gsub("}", "\n}"):gsub("%[", "[\n  "):gsub("%]", "\n]")
+
+  vim.fn.writefile(vim.split(formatted, "\n"), path)
+  vim.notify("[task.nvim] Project config created: " .. path, 2)
+end
+
+function M.load_project_config()
+  -- Reset to base config (defaults + user setup) before loading project config
+  M.config = vim.deepcopy(base_config)
+
+  local path = vim.fn.findfile(".task.json", ".;")
+  if path == "" then
+    -- No project config, we are good with base_config
+    return
+  end
+
+  local content = vim.fn.readfile(path)
+  if not content or #content == 0 then
+    vim.notify("[task.nvim] Could not read project config.", 3)
+    return
+  end
+
+  local ok, proj_config = pcall(vim.fn.json_decode, table.concat(content, "\n"))
+  if not ok or type(proj_config) ~= "table" then
+    vim.notify("[task.nvim] Invalid project config format.", 3)
+    return
+  end
+
+  M.config = vim.tbl_deep_extend("force", M.config, proj_config)
+end
+
 function M.setup(opts)
-  M.config = vim.tbl_deep_extend("force", M.config, opts or {})
+  -- Create base config by merging defaults with user opts
+  base_config = vim.tbl_deep_extend("force", default_config, opts or {})
+  -- Initialize current config with base config
+  M.config = vim.deepcopy(base_config)
 
   local seen = {}
   for id, conf in pairs(M.config.sections) do
@@ -314,6 +360,18 @@ function M.setup(opts)
     end,
   })
 
+  --load config on fir opening markdown file if it exists in the project
+  vim.api.nvim_create_autocmd("BufEnter", {
+    group = group,
+    pattern = "*.md",
+    callback = function()
+      vim.schedule(function()
+        M.load_project_config()
+      end)
+    end,
+  })
+
+  vim.api.nvim_create_user_command("TaskCreateEnvironment", M.create_project_config, {})
   vim.api.nvim_create_user_command("TaskSync", M.sync_buffer, {})
   vim.api.nvim_create_user_command("TaskNew", function(c) M.new_task(c.args ~= "" and c.args or nil) end, { nargs = "?" })
   vim.api.nvim_create_user_command("TaskMove", function(c) M.move(c.args ~= "" and c.args or nil, c.line1, c.line2) end,
