@@ -300,10 +300,7 @@ function M.create_project_config()
   end
 
   local json = vim.fn.json_encode(M.config)
-  -- Simple formatting for readability
-  local formatted = json:gsub(",", ",\n  "):gsub("{", "{\n  "):gsub("}", "\n}"):gsub("%[", "[\n  "):gsub("%]", "\n]")
-
-  vim.fn.writefile(vim.split(formatted, "\n"), path)
+  vim.fn.writefile({ json }, path)
   vim.notify("[task.nvim] Project config created: " .. path, 2)
 end
 
